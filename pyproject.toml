@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "banksy_hd"
+description = "BANKSY for Visium HD"
+readme = {file = "README.md", content-type = "text/markdown"}
+dynamic = ["version"]
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Benjamn James", email = "benjames@mit.edu"}
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "anndata",
+    "scanpy",
+    "squidpy",
+    "bin2cell",
+    "tqdm"
+]
+
+
+[project.optional-dependencies]
+testing = [
+    "pytest",
+    "scikit-learn"
+]
+docs = [
+    "sphinx"
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["banksy_hd"]
+	
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--strict-markers"
+testpaths = ["tests"]
+
+# [tool.sphinx]
+# builder = "html"
+# source-dir = "docs"
+# build-dir = "docs/_build"
