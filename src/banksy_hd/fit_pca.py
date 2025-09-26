@@ -8,6 +8,7 @@ def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
            use_lag:bool=True,
            use_laplacian_of_gaussian:bool=True,
            use_residuals:bool=False,
+           keep_pc_loadings:bool=True,
            kernel_use_diag:bool=False):
     """
     todo needs docstrings.
@@ -105,6 +106,12 @@ def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
     nmask = int(mask.sum())
     adata.varm["PCs"] = np.zeros((adata.shape[1], n_components), dtype=np.float32)
     adata.varm["PCs"][mask, :] = pca.components_[:, :nmask].T
+    if keep_pc_loadings:
+        for pf_idx in range(1, pf.shape[0]):
+            left = pf_idx * nmask
+            right = left + nmask
+            pname = pf.index.values[pf_idx]
+            adata.varm[f"PCs_{pname}"] = pca.components_[:, left:right].T
     print("Expanding PCA")
     adata.obsm["X_pca"] = np.zeros((adata.shape[0], n_components), dtype=np.float32)
     sv = diags(1. / (1e-100 + adata.var["Raw_std"].values)) @ adata.varm["PCs"] 

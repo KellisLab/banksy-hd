@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-def run(h5ad_list, output, quantile, min_total_counts:float=50., n_components:int=50, lamb:float=0.1,
+def run(h5ad_list, output, quantile, min_total_counts:float=0., n_components:int=50, lamb:float=0.1,
         normalization:str="log1p", weight:str="n_counts_adjusted",
         mu:float=2, rho:float=1.5, batch_size:int=50000,
         hvg:int=0, batch_key:str="slices",
         use_laplacian_of_gaussian:bool=True, use_residuals:bool=False,
+        keep_pc_loadings:bool=True,
         use_lag:bool=True, kernel_use_diag:bool=True):
     import numpy as np
     from scipy.sparse import diags
@@ -40,6 +41,7 @@ def run(h5ad_list, output, quantile, min_total_counts:float=50., n_components:in
            weight=weight,
            n_components=n_components, lamb=lamb, mu=mu, rho=rho,
            batch_size=batch_size, use_lag=use_lag, use_laplacian_of_gaussian=use_laplacian_of_gaussian,
+           keep_pc_loadings=keep_pc_loadings,
            use_residuals=use_residuals, kernel_use_diag=kernel_use_diag)
     adata.write_h5ad(output, compression="gzip")
     
@@ -63,12 +65,14 @@ if __name__ == "__main__":
     ap.add_argument("--hvg", type=int, default=0)
     ap.add_argument("--batch-key", type=str, default="slices")
     ap.add_argument("-p", "--n-pcs", type=int, default=100)
-    ap.add_argument("--min-total-counts", type=float, default=1.)
+    ap.add_argument("--min-total-counts", type=float, default=0.)
     ap.add_argument("--kernel-use-diag", dest="kernel_use_diag", action="store_true")
     ap.add_argument("--kernel-no-use-diag", dest="kernel_use_diag", action="store_false")
-    ap.add_argument("-w", "--weight", default="n_counts_adjusted")
+    ap.add_argument("--keep-extra-pc-loadings", dest="keep_pc_loadings", action="store_true")
+    ap.add_argument("--no-keep-extra-loadings", dest="keep_pc_loadings", action="store_false")    
+    ap.add_argument("-w", "--weight", default="")
     ap.add_argument("-n", "--normalization", default="log1p", choices=["log1p", "logCP10k", "tf-idf"])
-    ap.set_defaults(use_laplacian_of_gaussian=True,use_lag=True, use_residuals=False, kernel_use_diag=False)
+    ap.set_defaults(use_laplacian_of_gaussian=True, use_lag=True, use_residuals=False, kernel_use_diag=False, keep_pc_loadings=True)
     args = vars(ap.parse_args())
     if args["quantile"] is None:
         print("Quantile(s) not specified, just using median")
