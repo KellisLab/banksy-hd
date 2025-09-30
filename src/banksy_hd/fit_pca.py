@@ -5,6 +5,7 @@ from scipy.sparse import diags
 def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
            n_components:int=50, weight:str="_NullWeight",
            batch_size:int=50000, lamb:float=0.2, mu:float=1.5, rho:float=5,
+           mask_var:str="",
            use_lag:bool=True,
            use_laplacian_of_gaussian:bool=True,
            use_residuals:bool=False,
@@ -52,8 +53,8 @@ def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
         adata.var[cn] = msf[cn]
         adata.var[cn.replace("_mean", "_std")] = msf[cn.replace("_mean", "_std")]
     mask = msf["Raw_std"].values > 0 ### raw is always 1st
-    if "highly_variable" in adata.var.columns:
-        mask = adata.var["highly_variable"].values & mask
+    if mask_var in adata.var.columns:
+        mask = adata.var[mask_var].values & mask
     pf = pd.DataFrame(index=P_list)
     pf["Lag"] = pf.index.str.startswith("Lag")
     pf["LoG"] = pf.index.str.startswith("LoG")
@@ -111,7 +112,7 @@ def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
             left = pf_idx * nmask
             right = left + nmask
             pname = pf.index.values[pf_idx]
-            adata.varm[f"PCs_{pname}"] = pca.components_[:, left:right].T
+            adata.varm[f"PCs_{pname}"][mask, :] = pca.components_[:, left:right].T
     print("Expanding PCA")
     adata.obsm["X_pca"] = np.zeros((adata.shape[0], n_components), dtype=np.float32)
     sv = diags(1. / (1e-100 + adata.var["Raw_std"].values)) @ adata.varm["PCs"] 

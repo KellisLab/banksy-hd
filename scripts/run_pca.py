@@ -37,8 +37,11 @@ def run(h5ad_list, output, quantile, min_total_counts:float=0., n_components:int
             sc.pp.highly_variable_genes(adata, batch_key=batch_key, n_top_genes=hvg)
         else:
             sc.pp.highly_variable_genes(adata, n_top_genes=hvg)
+        mask_var="highly_variable"
+    else:
+        mask_var=""
     FitPCA(adata, quantiles=np.asarray(quantile),
-           weight=weight,
+           weight=weight, mask_var=mask_var,
            n_components=n_components, lamb=lamb, mu=mu, rho=rho,
            batch_size=batch_size, use_lag=use_lag, use_laplacian_of_gaussian=use_laplacian_of_gaussian,
            keep_pc_loadings=keep_pc_loadings,
