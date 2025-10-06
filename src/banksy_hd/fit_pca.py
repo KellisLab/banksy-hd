@@ -112,6 +112,7 @@ def FitPCA(adata, quantiles:Union[NDArray[float], List[float]],
             left = pf_idx * nmask
             right = left + nmask
             pname = pf.index.values[pf_idx]
+            adata.varm[f"PCs_{pname}"] = np.zeros((adata.shape[1], n_components), dtype=np.float32)
             adata.varm[f"PCs_{pname}"][mask, :] = pca.components_[:, left:right].T
     print("Expanding PCA")
     adata.obsm["X_pca"] = np.zeros((adata.shape[0], n_components), dtype=np.float32)
