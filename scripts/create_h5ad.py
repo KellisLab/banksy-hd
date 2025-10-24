@@ -45,7 +45,6 @@ def process_h5ad(adata, output:str="output.h5ad", euclidean:bool=True,
     import numpy as np
     import pandas as pd
     import scanpy as sc
-    import squidpy as sq
     from scipy.sparse import diags
     if "probe_region" in adata.var.columns:
         adata = summarize_probes(adata, filter_probes=filter_probes)
@@ -59,11 +58,16 @@ def process_h5ad(adata, output:str="output.h5ad", euclidean:bool=True,
         library_key = "slice"
     ### Find neighbors
     sample = adata.obs["Sample"].values[0]
-    if euclidean:
-        bin_radius = radius * adata.uns["spatial"][sample]["scalefactors"]["spot_diameter_fullres"]
-        sq.gr.spatial_neighbors(adata, library_key=library_key, coord_type="generic", radius=bin_radius)
-    else:
-        sq.gr.spatial_neighbors(adata, library_key=library_key, coord_type="grid", n_rings=radius, n_neighs=4)
+    if radius > 0:
+        import squidpy as sq
+        kwargs = {}
+        if len(pd.unique(adata.obs[library_key])) > 1:
+            kwargs["library_key"] = library_key
+        if euclidean:
+            bin_radius = radius * adata.uns["spatial"][sample]["scalefactors"]["spot_diameter_fullres"]
+            sq.gr.spatial_neighbors(adata, coord_type="generic", radius=bin_radius, **kwargs)
+        else:
+            sq.gr.spatial_neighbors(adata, coord_type="grid", n_rings=radius, n_neighs=4, **kwargs)
     dmax = adata.X.data.max()
     if dmax < 32768:
         adata.X = adata.X.astype(np.int16)
