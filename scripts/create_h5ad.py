@@ -148,7 +148,7 @@ def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
                 comm_keys &= set(props.keys())
     if column not in comm_keys:
         column = list(comm_keys)[0]
-        print("Using column \"%s\"", column)
+        print("Using column \"%s\"" % column)
     mask = np.zeros((adata.shape[0], len(FL)), dtype=bool)
     column_values = []
     pts = points(adata.obsm["spatial"][:, 0], adata.obsm["spatial"][:, 1])

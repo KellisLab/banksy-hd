@@ -25,10 +25,10 @@ def run(h5ad_list, output, quantile, min_total_counts:float=0., n_components:int
     if normalization == "log1p":
         if "n_counts_sk_adjusted" in adata.obs.columns:
             print("Using S/K adjustment")
-            size_factor = diags(adata.obs["n_counts_sk_adjusted"] / adata.obs["n_counts"])
+            size_factor = diags(adata.obs["n_counts_sk_adjusted"] / (1e-50 + adata.obs["n_counts"]))
         elif "n_counts_adjusted" in adata.obs.columns:
             print("Using bin2cell adjustment")
-            size_factor = diags(adata.obs["n_counts_adjusted"] / adata.obs["n_counts"])
+            size_factor = diags(adata.obs["n_counts_adjusted"] / (1e-50 + adata.obs["n_counts"]))
         else:
             size_factor = diags(np.ones_like(adata.obs["n_counts"]))
     else:
