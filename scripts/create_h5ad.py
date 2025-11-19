@@ -41,7 +41,7 @@ def summarize_probes(adata, filter_probes:bool=False):
     return adata
 
 def process_h5ad(adata, output:str="output.h5ad", euclidean:bool=True,
-                 radius:int=4, filter_probes:bool=True):
+                 radius:int=4, filter_probes:bool=True, library_key:str="Sample"):
     import numpy as np
     import pandas as pd
     import scanpy as sc
@@ -51,11 +51,7 @@ def process_h5ad(adata, output:str="output.h5ad", euclidean:bool=True,
     adata.var["ribo"] = adata.var_names.str.startswith(("RPS", "RPL", "Rps", "Rpl"))
     adata.var["mt"] = adata.var_names.str.startswith(("MT-", "mt-"))
     sc.pp.calculate_qc_metrics(adata, inplace=True, qc_vars=["ribo", "mt"], percent_top=None)
-    library_key = "Sample"
-    if "slice" in adata.obs.columns:
-        adata.obs["slice"] = pd.Categorical(adata.obs["slice"].values)
-        print(adata.obs["slice"].value_counts())
-        library_key = "slice"
+    adata.obs[library_key] = pd.Categorical(adata.obs[library_key].values)
     ### Find neighbors
     sample = adata.obs["Sample"].values[0]
     if radius > 0:
@@ -96,26 +92,26 @@ def run_bin2cell(adata, mpp:float=0.5, sample:str="mysample"):
     if "spatial_cropped" in adata.obsm.keys():
         del adata.obsm["spatial_cropped"]
     return adata
-
-
+    
 def build_h5ad(in_h5, source_image_path:str="myimage.tiff",
                output:str="output.h5ad",
                sample:str="MySample",
                radius:int=4, mpp:float=0.5,
-               slices:str="MySlices.tsv.gz",
-               bad_bins_csv:Union[List[str],None]=None,
+               geojson:str="", geojson_column:str="",
                use_bin2cell:bool=True,
                filter_probes:bool=True):
     import os, gc
     import numpy as np
     import pandas as pd
     import bin2cell as b2c
+    import banksy_hd
     binned_outputs = os.path.dirname(in_h5)
     count_file = os.path.basename(in_h5)
     sr_image_path = os.path.join(binned_outputs, "spatial")
     adata = b2c.read_visium(binned_outputs, count_file=count_file, library_id=sample,
                             source_image_path=source_image_path, spaceranger_image_path=sr_image_path)
     adata.obs["Sample"] = sample
+    library_key = "Sample"
     adata.obs_names = [f"{sample}#{bc}" for bc in adata.obs_names]
     adata.var_names_make_unique()
     adata.X = adata.X.astype(np.int32)
@@ -124,22 +120,48 @@ def build_h5ad(in_h5, source_image_path:str="myimage.tiff",
         adata = run_bin2cell(adata, mpp=mpp, sample=sample)
     else:
         b2c.destripe(adata, adjust_counts=False)
-    ### Split by slice
-    if bad_bins_csv is None:
-        bad_bins_csv = []
-    for bad_bin_csv in list(bad_bins_csv):
-        cf = pd.read_csv(bad_bin_csv, index_col=0, sep="\t")
-        print(bad_bin_csv, " % of bad bins: ", 100 * adata.obs_names.isin(cf.index.values).mean())
-        adata = adata[~adata.obs_names.isin(cf.index.values), :].copy()
-        gc.collect()
-    if os.path.exists(slices):
-        sf = pd.read_csv(slices, sep="\t", index_col=0)
-        adata = adata[adata.obs_names.isin(sf.index.values), :].copy()
-        adata.obs["slice"] = sf["slice"]
-        print(adata.obs.groupby("slice", observed=True).agg(total_counts=("n_counts", "sum")))
+    banksy_hd.destripe(adata, radius=radius)
+    if os.path.exists(geojson):
+        geojson_column = load_geojson(adata, geojson=geojson,
+                                      column=geojson_column)
+        print(adata.obs.groupby(geojson_column, observed=True).agg(total_counts=("n_counts", "sum")))
+        library_key = geojson_column
     gc.collect()
-    process_h5ad(adata, radius=radius, output=output)
+    process_h5ad(adata, radius=radius, output=output, library_key=library_key)
 
+def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
+    import numpy as np
+    import anndata, json, gzip
+    import fiona
+    from shapely.geometry import shape
+    comm_keys = None
+    with fiona.open(geojson, "r") as src:
+        for feat in src:
+            geom = shape(feat["geometry"])
+            props = feat["properties"]
+            FL.append((dict(props), geom))
+            if comm_keys is None:
+                comm_keys = set(props.keys())
+            else:
+                comm_keys &= set(props.keys())
+    if column not in comm_keys:
+        column = list(comm_keys)[0]
+        print("Using column \"%s\"", column)
+    mask = np.zeros((adata.shape[0], len(FL)), dtype=bool)
+    column_values = []
+    for i, (props, geom) in enumerate(FL):
+        mask[:, i] = geom.contains(adata.obsm["spatial"])
+        column_values.append(props.get(column, "Unassigned%d" % i))
+    double_count = mask.sum(1) > 0
+    if np.sum(double_count > 0) and warn_overlap:
+        print("Double counted GeoJSON:", double_count, "bins")
+    ### Set unassigned with Sample suffix to prevent merging
+    adata.obs[column] = [f"Unassigned{Sample}" for Sample in adata.obs["Sample"].values.astype(str)]
+    for i, val in enumerate(column_values):
+        bc = adata.obs_names[mask[:, i]]
+        adata.obs.loc[bc, column] = val
+    return column
+        
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
@@ -149,17 +171,16 @@ if __name__ == "__main__":
     ap.add_argument("-s", "--sample-name", required=True, dest="sample")
     ap.add_argument("-r", "--radius", type=int, default=4)
     ap.add_argument("--mpp", type=float, default=0.5)
-    ap.add_argument("--slices", default="")
+    ap.add_argument("--geojson", default="", type=str)
+    ap.add_argument("--geojson-column", default="", type=str)
     ap.add_argument("--filter-probes", action="store_true", dest="filter_probes")
     ap.add_argument("--keep-all-probes", action="store_false", dest="filter_probes")
     ap.add_argument("--bin2cell", action="store_true", dest="use_bin2cell")
     ap.add_argument("--no-bin2cell", action="store_false", dest="use_bin2cell")
-    ap.add_argument("--remove-bins-by-barcodes", nargs="+")
     ap.set_defaults(filter_probes=True, use_bin2cell=True)
     args = vars(ap.parse_args())
     build_h5ad(in_h5=args["in_h5"], output=args["output"],
                source_image_path=args["source_image_path"], mpp=args["mpp"],
                sample=args["sample"], radius=args["radius"],
                use_bin2cell=args["use_bin2cell"],
-               bad_bins_csv=args["remove_bins_by_barcodes"],
-               slices=args["slices"])
+               geojson=args["geojson"], geojson_column=args["geojson_column"])

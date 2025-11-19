@@ -2,6 +2,7 @@
 def run(h5ad_list, output, quantile, min_total_counts:float=0., n_components:int=50, lamb:float=0.1,
         normalization:str="log1p", weight:str="n_counts_adjusted",
         mu:float=2, rho:float=1.5, batch_size:int=50000,
+        sk_adjust:bool=True,
         hvg:int=0, batch_key:str="slices",
         use_laplacian_of_gaussian:bool=True, use_residuals:bool=False,
         keep_pc_loadings:bool=True,
@@ -16,13 +17,20 @@ def run(h5ad_list, output, quantile, min_total_counts:float=0., n_components:int
     for h5ad in h5ad_list:
         adata = anndata.read_h5ad(h5ad, backed="r")
         del adata.layers
-        adata = adata[adata.obs["n_counts_adjusted"] >= min_total_counts, :].to_memory()
+        adata = adata[adata.obs["n_counts"] >= min_total_counts, :].to_memory()
         stbl.update(adata.uns["spatial"])
         out.append(adata)
     adata = anndata.concat(out, merge="same", uns_merge="same", pairwise=True)
     adata.uns["spatial"] = stbl
     if normalization == "log1p":
-        size_factor = diags(adata.obs["n_counts_adjusted"] / adata.obs["n_counts"])
+        if "n_counts_sk_adjusted" in adata.obs.columns:
+            print("Using S/K adjustment")
+            size_factor = diags(adata.obs["n_counts_sk_adjusted"] / adata.obs["n_counts"])
+        elif "n_counts_adjusted" in adata.obs.columns:
+            print("Using bin2cell adjustment")
+            size_factor = diags(adata.obs["n_counts_adjusted"] / adata.obs["n_counts"])
+        else:
+            size_factor = diags(np.ones_like(adata.obs["n_counts"]))
     else:
         size_factor = diags(10000./adata.obs["n_counts"].values)
     if normalization == "tf-idf":
