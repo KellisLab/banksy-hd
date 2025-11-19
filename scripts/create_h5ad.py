@@ -135,6 +135,7 @@ def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
     import fiona
     from shapely.geometry import shape
     comm_keys = None
+    FL = []
     with fiona.open(geojson, "r") as src:
         for feat in src:
             geom = shape(feat["geometry"])
