@@ -133,7 +133,8 @@ def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
     import numpy as np
     import anndata, json, gzip
     import fiona
-    from shapely.geometry import shape, points, contains
+    from shapely.geometry import shape
+    from shapely import contains, points
     comm_keys = None
     FL = []
     with fiona.open(geojson, "r") as src:
