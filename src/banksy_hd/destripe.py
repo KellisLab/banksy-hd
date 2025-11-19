@@ -40,7 +40,7 @@ def destripe(adata, radius:int=4, col_name='n_counts_sk_adjusted'):
     C = csr_matrix((counts, (rows, cols)),
                    shape=(n_rows, n_cols),
                    dtype=int).toarray()
-    S = np.expm1(gaussian_filter(np.log1p(C), sigma))
+    S = np.expm1(gaussian_filter(np.log1p(C), radius))
     S[S <= 0.] = np.median(S[S > 0])
     M = (C > 0).astype(bool)
     row_tgt = M.sum(1).astype(float)
