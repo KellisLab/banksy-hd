@@ -133,7 +133,7 @@ def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
     import numpy as np
     import anndata, json, gzip
     import fiona
-    from shapely.geometry import shape
+    from shapely.geometry import shape, points, contains
     comm_keys = None
     FL = []
     with fiona.open(geojson, "r") as src:
@@ -150,8 +150,9 @@ def load_geojson(adata, geojson:str, column:str="", warn_overlap:bool=True):
         print("Using column \"%s\"", column)
     mask = np.zeros((adata.shape[0], len(FL)), dtype=bool)
     column_values = []
+    pts = points(adata.obsm["spatial"][:, 0], adata.obsm["spatial"][:, 1])
     for i, (props, geom) in enumerate(FL):
-        mask[:, i] = geom.contains(adata.obsm["spatial"])
+        mask[:, i] = contains(geom, pts)
         column_values.append(props.get(column, "Unassigned%d" % i))
     double_count = mask.sum(1) > 0
     if np.sum(double_count > 0) and warn_overlap:
